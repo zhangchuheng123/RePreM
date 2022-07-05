@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
+
+python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100
 """
 from __future__ import division
 
@@ -164,8 +166,7 @@ def main():
         while True:
             action = agent.act(state)
             next_state, _, done = env.step(action)
-            ram_state = env.ale.getRAM()
-            pdb.set_trace()
+            ram_state = env.ale.getRAM() / 255
             state = next_state
             record.append((state, ram_state))
             T += 1
@@ -186,8 +187,9 @@ def main():
 
     for i_period in range(11):
         training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
-        training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), dtype=torch.float32)
-        training_set_y = training_set_y.to(device=args.device) / 255
+        training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), 
+            dtype=torch.float32)
+        training_set_y = training_set_y.to(device=args.device)
 
         for i_epoch in range(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
             inds = np.random.choice(train_size, args.batch_size, replace=False)
@@ -204,7 +206,9 @@ def main():
 
             with torch.no_grad():
                 eval_set_x = torch.stack([item[0][0] for item in DQN_mem_eval])
-                eval_set_y = np.array([item[i_period][1] for item in DQN_mem_eval])
+                eval_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_eval]), 
+                    dtype=torch.float32)
+                eval_set_y = eval_set_y.to(device=args.device)
 
                 eval_set_x = torch.stack(eval_set_x)
                 eval_set_y = Tensor(eval_set_y)
