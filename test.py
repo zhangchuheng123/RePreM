@@ -27,7 +27,7 @@ def test(args, T, agent, val_mem, metrics, results_dir, evaluate=False, plot=Fal
                 state, reward_traj, reward_sum, state_traj, done = env.reset(), [], 0, [], False
 
             state_traj.append(state)
-            action = agent.act_eval(state)  # Choose an action ε-greedily
+            action = agent.act(state)  # Choose an action greedily (possibly with noisy net)
             state, reward, done = env.step(action)  # Step
             reward_traj.append(reward)
             reward_sum += reward
