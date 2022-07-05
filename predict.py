@@ -69,7 +69,8 @@ def parse_arguments():
     parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
     parser.add_argument('--tensorboard-dir', type=str, default=None, help='tensorboard directory')
     parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
-    parser.add_argument('--DQN-memory-size', type=int, default=10000)
+    parser.add_argument('--DQN-sample-size', type=int, default=1000)
+    parser.add_argument('--prediction-training-rounds', type=int, default=100)
 
     args = parser.parse_args()
 
@@ -156,7 +157,7 @@ def main():
     #     agent.load_state_dict(torch.load(args.model))
 
     DQN_mem = []
-    for i_samples in trange(args.DQN_memory_size):
+    for i_samples in trange(args.DQN_sample_size):
 
         record = []
         T = 0
@@ -198,7 +199,7 @@ def main():
             dtype=torch.float32)
         eval_set_y = eval_set_y.to(device=args.device)
 
-        for i_epoch in trange(int(DQN_train_size * 20 / args.batch_size)):
+        for i_epoch in trange(int(DQN_train_size * args.prediction_training_rounds / args.batch_size)):
             inds = np.random.choice(DQN_train_size, args.batch_size, replace=False)
             mini_x = training_set_x[inds]
             mini_y = training_set_y[inds]
