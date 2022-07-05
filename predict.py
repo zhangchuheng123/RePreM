@@ -175,6 +175,8 @@ def main():
         DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
             record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
 
+        print('.', end='')
+
     train_size = int(args.DQN_memory_size * 0.7)
     DQN_mem_train = DQN_mem[:train_size]
     DQN_mem_eval = DQN_mem[train_size:]
