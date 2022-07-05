@@ -216,8 +216,8 @@ def main():
 
                 eval_loss = mse_loss(pred_y, eval_set_y)
 
-            writer.add_scalar('period{}/train_loss'.format(i_period), float(loss), T)
-            writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), T)
+            writer.add_scalar('period{}/train_loss'.format(i_period), float(loss), i_epoch)
+            writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), i_epoch)
 
     env.close()
 
