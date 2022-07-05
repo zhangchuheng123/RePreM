@@ -11,6 +11,7 @@ import numpy as np
 import atari_py
 
 from torch import nn
+from torch import optim
 from torch.nn import functional as F
 
 from datetime import datetime
