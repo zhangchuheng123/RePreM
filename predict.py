@@ -158,7 +158,7 @@ def main():
     #     agent.load_state_dict(torch.load(args.model))
 
     DQN_mem = []
-    for i_samples in range(args.DQN_memory_size):
+    for i_samples in trange(args.DQN_memory_size):
 
         record = []
         T = 0
@@ -177,19 +177,20 @@ def main():
         DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
             record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
 
-        print('.', end='')
-
     train_size = int(args.DQN_memory_size * 0.7)
     DQN_mem_train = DQN_mem[:train_size]
     DQN_mem_eval = DQN_mem[train_size:]
-
-    pdb.set_trace()
 
     for i_period in range(11):
         training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
         training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), 
             dtype=torch.float32)
         training_set_y = training_set_y.to(device=args.device)
+
+        eval_set_x = torch.stack([item[0][0] for item in DQN_mem_eval])
+        eval_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_eval]), 
+            dtype=torch.float32)
+        eval_set_y = eval_set_y.to(device=args.device)
 
         for i_epoch in range(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
             inds = np.random.choice(train_size, args.batch_size, replace=False)
@@ -205,14 +206,6 @@ def main():
             optimizer.step()
 
             with torch.no_grad():
-                eval_set_x = torch.stack([item[0][0] for item in DQN_mem_eval])
-                eval_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_eval]), 
-                    dtype=torch.float32)
-                eval_set_y = eval_set_y.to(device=args.device)
-
-                eval_set_x = torch.stack(eval_set_x)
-                eval_set_y = Tensor(eval_set_y)
-
                 repr_x = agent.online_net.representation(eval_set_x)
                 pred_y = predictor(repr_x)
 
@@ -220,73 +213,6 @@ def main():
 
             writer.add_scalar('period{}/train_loss'.format(i_period), float(loss), T)
             writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), T)
-
-def others():
-    # Construct validation memory
-    val_mem = ReplayMemory(args, args.evaluation_size)
-    T, done = 0, True
-    while T < args.evaluation_size:
-        if done:
-            state, done = env.reset(), False
-
-        next_state, _, done = env.step(np.random.randint(0, action_space))
-        val_mem.append(state, None, None, done)
-        state = next_state
-        T += 1
-
-    if args.evaluate:
-        dqn.eval()  # Set DQN (online network) to evaluation mode
-        avg_reward, avg_Q = test(args, 0, dqn, val_mem, metrics, results_dir, evaluate=True)  # Test
-        logger.info('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
-    else:
-        # Training loop
-        dqn.train()
-        T, done = 0, True
-        accumulate_reward = 0
-        for T in trange(1, args.T_max + 1):
-            if done:
-                state, done = env.reset(), False
-                writer.add_scalar('Train/Reward', accumulate_reward, T)
-                accumulate_reward = 0
-
-            if T % args.replay_frequency == 0:
-                dqn.reset_noise()  # Draw a new set of noisy weights
-
-            action = dqn.act(state)  # Choose an action greedily (with noisy weights)
-            next_state, reward, done = env.step(action)  # Step
-            accumulate_reward += reward
-            if args.reward_clip > 0:
-                reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-            mem.append(state, action, reward, done)  # Append transition to memory
-
-            # Train and test
-            if T >= args.learn_start:
-                mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
-
-                if T % args.replay_frequency == 0:
-                    dqn.learn(mem)  # Train with n-step distributional double-Q learning
-
-                if T % args.evaluation_interval == 0:
-                    dqn.eval()  # Set DQN (online network) to evaluation mode
-                    avg_reward, avg_Q = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
-                    writer.add_scalar('Eval/Reward', avg_reward, T)
-                    writer.add_scalar('Eval/Q', avg_Q, T)
-                    logger.info('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
-                    dqn.train()  # Set DQN (online network) back to training mode
-
-                    # If memory path provided, save it
-                    if args.memory is not None:
-                        save_memory(mem, args.memory, args.disable_bzip_memory)
-
-                # Update target network
-                if T % args.target_update == 0:
-                    dqn.update_target_net()
-
-                # Checkpoint the network
-                if T % args.checkpoint_interval == 0:
-                    dqn.save(results_dir, 'checkpoint.pth')
-
-            state = next_state
 
     env.close()
 
