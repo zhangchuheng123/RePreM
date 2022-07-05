@@ -57,7 +57,7 @@ def parse_arguments():
     parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
     parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
     parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
-    parser.add_argument('--checkpoint-interval', default=0, help='How often to checkpoint the model, defaults to 0 (never checkpoint)')
+    parser.add_argument('--checkpoint-interval', default=int(20e3), help='How often to checkpoint the model, defaults to 0 (never checkpoint)')
     parser.add_argument('--memory', help='Path to save/load the memory from')
     parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
     parser.add_argument('--tensorboard-dir', type=str, default=None, help='tensorboard directory')
@@ -198,7 +198,7 @@ def main():
                     dqn.update_target_net()
 
                 # Checkpoint the network
-                if (args.checkpoint_interval != 0) and (T % args.checkpoint_interval == 0):
+                if T % args.checkpoint_interval == 0:
                     dqn.save(results_dir, 'checkpoint.pth')
 
             state = next_state
