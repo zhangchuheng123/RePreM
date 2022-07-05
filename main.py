@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
+
+python main.py --id test0_alien --disable-cuda --game alien --enable-cudnn --tensorboard-dir ~/RePreM/results/test0_alien
 """
 from __future__ import division
 
@@ -100,7 +102,7 @@ def main():
     os.makedirs(results_dir, exist_ok=True)
     logger = Logger(results_dir)
 
-    metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
+    metrics = {'steps': [], 'rewards': [], 'Qs': [], 'Qstds': [], 'best_avg_reward': -float('inf')}
     np.random.seed(args.seed)
     torch.manual_seed(np.random.randint(1, 10000))
     if torch.cuda.is_available() and not args.disable_cuda:
@@ -151,8 +153,9 @@ def main():
 
     if args.evaluate:
         dqn.eval()  # Set DQN (online network) to evaluation mode
-        avg_reward, avg_Q = test(args, 0, dqn, val_mem, metrics, results_dir, evaluate=True)  # Test
-        logger.info('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        test_result = test(args, 0, dqn, val_mem, metrics, results_dir, evaluate=True)  # Test
+        logger.info('Avg. reward: ' + str(test_result['avg_reward']) \
+            + ' | Avg. Q: ' + str(test_result['avg_Q']))
     else:
         # Training loop
         dqn.train()
@@ -183,10 +186,12 @@ def main():
 
                 if T % args.evaluation_interval == 0:
                     dqn.eval()  # Set DQN (online network) to evaluation mode
-                    avg_reward, avg_Q = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
-                    writer.add_scalar('Eval/Reward', avg_reward, T)
-                    writer.add_scalar('Eval/Q', avg_Q, T)
-                    logger.info('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+                    test_result = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
+                    for k, v in test_result.items():
+                        writer.add_scalar('Eval/{}'.format(k), v, T)
+                    logger.info('T = ' + str(T) + ' / ' + str(args.T_max) + \
+                        ' | Avg. reward: ' + str(test_result['avg_reward']) + \
+                        ' | Avg. Q: ' + str(test_result['avg_Q']))
                     dqn.train()  # Set DQN (online network) back to training mode
 
                     # If memory path provided, save it
