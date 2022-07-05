@@ -2,7 +2,7 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100 --tensorboard-dir ~/RePreM/results/debug_pred
+python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100 --tensorboard-dir ~/RePreM/results/debug_pred2
 """
 from __future__ import division
 
@@ -149,8 +149,6 @@ def main():
 
     # Agent
     agent = Agent(args, env)
-    predictor = Predictor(args).to(device=args.device)
-    optimizer = optim.Adam(predictor.parameters(), lr=args.learning_rate, eps=args.adam_eps)
     mse_loss = nn.MSELoss()
 
     # if args.model is not None:
@@ -186,6 +184,9 @@ def main():
     for i_period in range(11):
 
         print('i_period={}'.format(i_period))
+
+        predictor = Predictor(args).to(device=args.device)
+        optimizer = optim.Adam(predictor.parameters(), lr=args.learning_rate, eps=args.adam_eps)
 
         training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
         training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), 
