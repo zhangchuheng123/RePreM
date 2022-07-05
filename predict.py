@@ -183,6 +183,9 @@ def main():
     DQN_mem_eval = DQN_mem[train_size:]
 
     for i_period in range(11):
+        
+        print('i_period={}'.format(i_period))
+
         training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
         training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), 
             dtype=torch.float32)
