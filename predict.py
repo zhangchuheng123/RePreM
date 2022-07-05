@@ -2,7 +2,7 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100
+python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100 --tensorboard-dir ~/RePreM/results/debug_pred
 """
 from __future__ import division
 
@@ -178,12 +178,13 @@ def main():
             DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
                 record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
 
-    train_size = int(args.DQN_memory_size * 0.7)
-    DQN_mem_train = DQN_mem[:train_size]
-    DQN_mem_eval = DQN_mem[train_size:]
+    DQN_mem_size = len(DQN_mem)
+    DQN_train_size = int(DQN_mem_size * 0.7)
+    DQN_mem_train = DQN_mem[:DQN_train_size]
+    DQN_mem_eval = DQN_mem[DQN_train_size:]
 
     for i_period in range(11):
-        
+
         print('i_period={}'.format(i_period))
 
         training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
@@ -196,8 +197,8 @@ def main():
             dtype=torch.float32)
         eval_set_y = eval_set_y.to(device=args.device)
 
-        for i_epoch in trange(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
-            inds = np.random.choice(train_size, args.batch_size, replace=False)
+        for i_epoch in trange(int(DQN_train_size * 20 / args.batch_size)):
+            inds = np.random.choice(DQN_train_size, args.batch_size, replace=False)
             mini_x = training_set_x[inds]
             mini_y = training_set_y[inds]
 
