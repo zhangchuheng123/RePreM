@@ -173,9 +173,10 @@ def main():
             if done:
                 break
 
-        ind = np.random.randint(T - 50 - 1)
-        DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
-            record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
+        for _ in range(100):
+            ind = np.random.randint(T - 50 - 1)
+            DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
+                record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
 
     train_size = int(args.DQN_memory_size * 0.7)
     DQN_mem_train = DQN_mem[:train_size]
@@ -192,7 +193,7 @@ def main():
             dtype=torch.float32)
         eval_set_y = eval_set_y.to(device=args.device)
 
-        for i_epoch in range(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
+        for i_epoch in trange(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
             inds = np.random.choice(train_size, args.batch_size, replace=False)
             mini_x = training_set_x[inds]
             mini_y = training_set_y[inds]
