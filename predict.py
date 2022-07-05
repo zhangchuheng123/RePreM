@@ -147,7 +147,7 @@ def main():
 
     # Agent
     agent = Agent(args, env)
-    predictor = Predictor(args)
+    predictor = Predictor(args).to(device=args.device)
     optimizer = optim.Adam(predictor.parameters(), lr=args.learning_rate, eps=args.adam_eps)
     mse_loss = nn.MSELoss()
 
@@ -165,6 +165,7 @@ def main():
             action = agent.act(state)
             next_state, _, done = env.step(action)
             ram_state = env.ale.getRAM()
+            pdb.set_trace()
             state = next_state
             record.append((state, ram_state))
             T += 1
@@ -184,11 +185,9 @@ def main():
     pdb.set_trace()
 
     for i_period in range(11):
-        training_set_x = np.array([item[0][0] for item in DQN_mem_train])
-        training_set_y = np.array([item[i_period][1] for item in DQN_mem_train])
-
-        training_set_x = torch.stack(training_set_x)
-        training_set_y = Tensor(training_set_y)
+        training_set_x = torch.stack([item[0][0] for item in DQN_mem_train])
+        training_set_y = torch.tensor(np.array([item[i_period+1][1] for item in DQN_mem_train]), dtype=torch.float32)
+        training_set_y = training_set_y.to(device=args.device) / 255
 
         for i_epoch in range(int(args.DQN_memory_size * 0.7 * 20 / args.batch_size)):
             inds = np.random.choice(train_size, args.batch_size, replace=False)
@@ -204,7 +203,7 @@ def main():
             optimizer.step()
 
             with torch.no_grad():
-                eval_set_x = np.array([item[0][0] for item in DQN_mem_eval])
+                eval_set_x = torch.stack([item[0][0] for item in DQN_mem_eval])
                 eval_set_y = np.array([item[i_period][1] for item in DQN_mem_eval])
 
                 eval_set_x = torch.stack(eval_set_x)
@@ -217,7 +216,6 @@ def main():
 
             writer.add_scalar('period{}/train_loss'.format(i_period), float(loss), T)
             writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), T)
-
 
 def others():
     # Construct validation memory
