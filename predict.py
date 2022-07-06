@@ -2,7 +2,7 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-memory-size 100 --tensorboard-dir ~/RePreM/results/debug_pred2
+python predict.py --model results/test0_alien/checkpoint.pth --game alien --DQN-sample-size 200 --tensorboard-dir ~/RePreM/results/predict_middle_3
 """
 from __future__ import division
 
@@ -173,16 +173,17 @@ def main():
                 break
 
         for _ in range(100):
-            ind = np.random.randint(T - 50 - 1)
-            DQN_mem.append([record[ind], record[ind+1], record[ind+2], record[ind+3], record[ind+4], record[ind+5],
-                record[ind+10], record[ind+15], record[ind+20], record[ind+30], record[ind+40], record[ind+50]])
+            ind = np.random.randint(T - 100 - 1)
+            DQN_mem.append([record[ind], record[ind+1], record[ind+3], record[ind+5],
+                record[ind+10], record[ind+20], record[ind+30], 
+                record[ind+40], record[ind+50], record[ind+100]])
 
     DQN_mem_size = len(DQN_mem)
     DQN_train_size = int(DQN_mem_size * 0.7)
     DQN_mem_train = DQN_mem[:DQN_train_size]
     DQN_mem_eval = DQN_mem[DQN_train_size:]
 
-    for i_period in range(11):
+    for i_period in reversed(range(9)):
 
         print('i_period={}'.format(i_period))
 
@@ -212,14 +213,15 @@ def main():
             loss.backward()
             optimizer.step()
 
-            with torch.no_grad():
-                repr_x = agent.online_net.representation(eval_set_x)
-                pred_y = predictor(repr_x)
-
-                eval_loss = mse_loss(pred_y, eval_set_y)
-
             writer.add_scalar('period{}/train_loss'.format(i_period), float(loss), i_epoch)
-            writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), i_epoch)
+
+            if i_epoch % 10 == 0:
+                with torch.no_grad():
+                    repr_x = agent.online_net.representation(eval_set_x)
+                    pred_y = predictor(repr_x)
+
+                    eval_loss = mse_loss(pred_y, eval_set_y)
+                writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), i_epoch)
 
     env.close()
 

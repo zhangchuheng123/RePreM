@@ -2,7 +2,7 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-python main.py --id test0_alien --disable-cuda --game alien --enable-cudnn --tensorboard-dir ~/RePreM/results/test0_alien
+python main.py --id baseline --disable-cuda --game alien --enable-cudnn --tensorboard-dir ~/RePreM/results/rainbow
 """
 from __future__ import division
 
