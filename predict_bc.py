@@ -2,8 +2,8 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-CUDA_VISIBLE_DEVICES=1 python predict.py --model results/test0_alien/checkpoint.pth \
-    --game alien --DQN-sample-size 200 --tensorboard-dir ~/RePreM/results/predict_near_final_fixed
+CUDA_VISIBLE_DEVICES=0 python predict_bc.py --model results/test0_alien/checkpoint.pth \
+    --game alien --tensorboard-dir ~/RePreM/results/predict_bc_1
 """
 from __future__ import division
 
@@ -27,6 +27,7 @@ from agent import Agent
 from env import Env
 from memory import ReplayMemory
 from test import test
+from model import DQN
 import pdb
 
 
@@ -70,8 +71,10 @@ def parse_arguments():
     parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
     parser.add_argument('--tensorboard-dir', type=str, default=None, help='tensorboard directory')
     parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
-    parser.add_argument('--DQN-sample-size', type=int, default=1000)
+    parser.add_argument('--DQN-num-trajs', type=int, default=1000)
     parser.add_argument('--prediction-training-rounds', type=int, default=100)
+    parser.add_argument('--BC-num-trajs', type=int, default=2000)
+    parser.add_argument('--BC-training-rounds', type=int, default=50)
 
     args = parser.parse_args()
 
@@ -104,7 +107,7 @@ class Logger(object):
             f.writelines([string, ''])
 
 class Predictor(nn.Module):
-    def  __init__(self, args):
+    def  __init__(self, args, dim_out=128):
         super(Predictor, self).__init__()
 
         if args.architecture == 'canonical':
@@ -114,13 +117,34 @@ class Predictor(nn.Module):
 
         self.fc1 = nn.Linear(self.conv_output_size, args.hidden_size)
         self.fc2 = nn.Linear(args.hidden_size, args.hidden_size)
-        self.fc3 = nn.Linear(args.hidden_size, 128)
+        self.fc3 = nn.Linear(args.hidden_size, dim_out)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
+
+class Policy(nn.Module):
+    def  __init__(self, args, action_space=128):
+        super(Policy, self).__init__()
+
+        if args.architecture == 'canonical':
+            self.conv_output_size = 3136
+        elif args.architecture == 'data-efficient':
+            self.conv_output_size = 576
+
+        self.fc1 = nn.Linear(self.conv_output_size, args.hidden_size)
+        self.fc2 = nn.Linear(args.hidden_size, args.hidden_size)
+        self.fc3 = nn.Linear(args.hidden_size, action_space)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.softmax(self.fc3(x), dim=1)
+        return x
+
 
 def main():
     args = parse_arguments()
@@ -153,12 +177,51 @@ def main():
     agent = Agent(args, env)
     mse_loss = nn.MSELoss()
 
-    # if args.model is not None:
-    #     assert os.path.exists(args.model), "Model path does not exist!"
-    #     agent.load_state_dict(torch.load(args.model))
+    # collect_samples for BC
+    bc_mem_state = []
+    bc_mem_action = []
+    for i_samples in trange(args.BC_num_trajs, desc="Collect BC samples"):
+        state = env.reset()
+        while True:
+            action = agent.act(state)
+            next_state, _, done = env.step(action)
+            bc_mem_state.append(state)
+            bc_mem_action.append(action)
+            state = next_state
+            if done:
+                break
 
+    bc_mem_size = len(bc_mem_state)
+    bc_mem_state = torch.stack(bc_mem_state).to(device=args.device)
+    bc_mem_action = torch.tensor(bc_mem_action, device=args.device, dtype=torch.long)
+
+    # train BC
+    ce_loss = nn.CrossEntropyLoss()
+    model_repr = DQN(args, action_space).to(device=args.device)
+    model_plcy = Policy(args, action_space).to(device=args.device)
+    forward_func = lambda x: model_plcy(model_repr.representation(x))
+    optimizer = optim.Adam(list(model_repr.parameters()) + list(model_plcy.parameters()), 
+        lr=args.learning_rate, eps=args.adam_eps)
+
+    for i_epoch in trange(int(bc_mem_size * args.BC_training_rounds / args.batch_size),
+        desc="BC training"):
+
+        inds = np.random.choice(bc_mem_size, args.batch_size, replace=False)
+        mini_x = bc_mem_state[inds]
+        mini_y = bc_mem_action[inds]
+
+        pred_y = forward_func(mini_x)
+        loss = ce_loss(pred_y, mini_y)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        writer.add_scalar('BC/train_loss', float(loss), i_epoch)
+
+    # collect samples for prediction test
     DQN_mem = []
-    for i_samples in trange(args.DQN_sample_size):
+    for i_samples in trange(args.DQN_num_trajs, desc="Collect predict samples"):
 
         record = []
         T = 0
@@ -189,8 +252,6 @@ def main():
 
     for i_period in reversed(range(9)):
 
-        print('i_period={}'.format(i_period))
-
         predictor = Predictor(args).to(device=args.device)
         optimizer = optim.Adam(predictor.parameters(), lr=args.learning_rate, eps=args.adam_eps)
 
@@ -204,12 +265,14 @@ def main():
             dtype=torch.float32)
         eval_set_y = eval_set_y.to(device=args.device)
 
-        for i_epoch in trange(int(DQN_train_size * args.prediction_training_rounds / args.batch_size)):
+        for i_epoch in trange(int(DQN_train_size * args.prediction_training_rounds / args.batch_size),
+            desc="Predict training i_period={}".format(i_period)):
+
             inds = np.random.choice(DQN_train_size, args.batch_size, replace=False)
             mini_x = training_set_x[inds]
             mini_y = training_set_y[inds]
 
-            repr_x = agent.online_net.representation(mini_x).detach()
+            repr_x = model_repr.representation(mini_x).detach()
             pred_y = predictor(repr_x)
             loss = mse_loss(pred_y, mini_y)
 
