@@ -2,8 +2,8 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-CUDA_VISIBLE_DEVICES=1 python predict.py --model results/test0_alien/checkpoint.pth \
-    --game alien --DQN-sample-size 200 --tensorboard-dir ~/RePreM/results/predict_near_final_fixed
+CUDA_VISIBLE_DEVICES=1 python predict.py --model results/baseline/model.pth \
+    --game alien --DQN-sample-size 200 --tensorboard-dir ~/RePreM/results/predict_50M_fixed
 """
 from __future__ import division
 

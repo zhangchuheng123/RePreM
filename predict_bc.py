@@ -3,7 +3,7 @@
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
 CUDA_VISIBLE_DEVICES=0 python predict_bc.py --model results/test0_alien/checkpoint.pth \
-    --game alien --tensorboard-dir ~/RePreM/results/predict_bc_1
+    --game alien --tensorboard-dir ~/RePreM/results/predict_bc_3
 """
 from __future__ import division
 
@@ -71,10 +71,10 @@ def parse_arguments():
     parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
     parser.add_argument('--tensorboard-dir', type=str, default=None, help='tensorboard directory')
     parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
-    parser.add_argument('--DQN-num-trajs', type=int, default=1000)
-    parser.add_argument('--prediction-training-rounds', type=int, default=100)
-    parser.add_argument('--BC-num-trajs', type=int, default=2000)
-    parser.add_argument('--BC-training-rounds', type=int, default=50)
+    parser.add_argument('--DQN-num-trajs', type=int, default=200)
+    parser.add_argument('--prediction-training-rounds', type=int, default=200)
+    parser.add_argument('--BC-num-trajs', type=int, default=200)
+    parser.add_argument('--BC-training-rounds', type=int, default=500)
 
     args = parser.parse_args()
 
@@ -145,38 +145,10 @@ class Policy(nn.Module):
         x = F.softmax(self.fc3(x), dim=1)
         return x
 
+def behavior_cloning(args, writer, agent, env):
 
-def main():
-    args = parse_arguments()
-
-    results_dir = os.path.join('results', args.id)
-    os.makedirs(results_dir, exist_ok=True)
-    logger = Logger(results_dir)
-
-    metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
-    np.random.seed(args.seed)
-    torch.manual_seed(np.random.randint(1, 10000))
-    if torch.cuda.is_available() and not args.disable_cuda:
-        args.device = torch.device('cuda')
-        torch.cuda.manual_seed(np.random.randint(1, 10000))
-        torch.backends.cudnn.enabled = args.enable_cudnn
-    else:
-        args.device = torch.device('cpu')
-
-    if args.tensorboard_dir is None:
-        writer = SummaryWriter(os.path.join(results_dir, 'tensorboard', args.game, args.architecture))
-    else:
-        writer = SummaryWriter(os.path.join(args.tensorboard_dir, args.game, args.architecture))
-
-    # Environment
-    env = Env(args)
-    env.train()
     action_space = env.action_space()
-
-    # Agent
-    agent = Agent(args, env)
-    mse_loss = nn.MSELoss()
-
+    
     # collect_samples for BC
     bc_mem_state = []
     bc_mem_action = []
@@ -219,6 +191,12 @@ def main():
 
         writer.add_scalar('BC/train_loss', float(loss), i_epoch)
 
+    return model_repr
+
+
+def prediction(args, writer, env, agent, model_repr):
+
+    mse_loss = nn.MSELoss()
     # collect samples for prediction test
     DQN_mem = []
     for i_samples in trange(args.DQN_num_trajs, desc="Collect predict samples"):
@@ -250,7 +228,7 @@ def main():
     DQN_mem_train = DQN_mem[:DQN_train_size]
     DQN_mem_eval = DQN_mem[DQN_train_size:]
 
-    for i_period in reversed(range(9)):
+    for i_period in range(9):
 
         predictor = Predictor(args).to(device=args.device)
         optimizer = optim.Adam(predictor.parameters(), lr=args.learning_rate, eps=args.adam_eps)
@@ -289,6 +267,42 @@ def main():
 
                     eval_loss = mse_loss(pred_y, eval_set_y)
                 writer.add_scalar('period{}/eval_loss'.format(i_period), float(eval_loss), i_epoch)
+
+
+def main():
+    args = parse_arguments()
+
+    results_dir = os.path.join('results', args.id)
+    os.makedirs(results_dir, exist_ok=True)
+    logger = Logger(results_dir)
+
+    metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
+    np.random.seed(args.seed)
+    torch.manual_seed(np.random.randint(1, 10000))
+    if torch.cuda.is_available() and not args.disable_cuda:
+        args.device = torch.device('cuda')
+        torch.cuda.manual_seed(np.random.randint(1, 10000))
+        torch.backends.cudnn.enabled = args.enable_cudnn
+    else:
+        args.device = torch.device('cpu')
+
+    if args.tensorboard_dir is None:
+        writer = SummaryWriter(os.path.join(results_dir, 'tensorboard', args.game, args.architecture))
+    else:
+        writer = SummaryWriter(os.path.join(args.tensorboard_dir, args.game, args.architecture))
+
+    # Environment
+    env = Env(args)
+    env.train()
+
+    # Agent
+    agent = Agent(args, env)
+
+    # Step 1: Behavior Cloning
+    model_repr = behavior_cloning(args, writer, agent, env)
+
+    # Step 2: Prediction
+    prediction(args, writer, env, agent, model_repr)
 
     env.close()
 
