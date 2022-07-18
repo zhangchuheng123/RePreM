@@ -2,7 +2,7 @@
 """
 TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames every 1M steps
 
-python main.py --id baseline --disable-cuda --game alien --enable-cudnn --tensorboard-dir ~/RePreM/results/rainbow
+python main.py --id rainbow-alien --disable-cuda --game alien --enable-cudnn --tensorboard-dir ~/RePreM/results/rainbow-alien
 """
 from __future__ import division
 
@@ -184,7 +184,7 @@ def main():
                 if T % args.replay_frequency == 0:
                     dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
-                if T % args.evaluation_interval == 0:
+                if T % args.evaluation_interval == 0 or (T < 100000 and T % 200 == 0):
                     dqn.eval()  # Set DQN (online network) to evaluation mode
                     test_result = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
                     for k, v in test_result.items():

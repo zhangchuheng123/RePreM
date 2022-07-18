@@ -71,10 +71,10 @@ def parse_arguments():
     parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
     parser.add_argument('--tensorboard-dir', type=str, default=None, help='tensorboard directory')
     parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
-    parser.add_argument('--DQN-num-trajs', type=int, default=200)
-    parser.add_argument('--prediction-training-rounds', type=int, default=200)
-    parser.add_argument('--BC-num-trajs', type=int, default=200)
-    parser.add_argument('--BC-training-rounds', type=int, default=500)
+    parser.add_argument('--DQN-num-trajs', type=int, default=300)
+    parser.add_argument('--prediction-training-rounds', type=int, default=300)
+    parser.add_argument('--BC-num-trajs', type=int, default=300)
+    parser.add_argument('--BC-training-rounds', type=int, default=5000)
 
     args = parser.parse_args()
 
@@ -148,7 +148,7 @@ class Policy(nn.Module):
 def behavior_cloning(args, writer, agent, env):
 
     action_space = env.action_space()
-    
+
     # collect_samples for BC
     bc_mem_state = []
     bc_mem_action = []
